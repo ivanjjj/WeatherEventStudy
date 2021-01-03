@@ -1,0 +1,100 @@
+---
+title: "Economic and health effects of disasters in the United States"
+author: "Ivan Jennings"
+date: "30/12/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+```
+
+### Synopsis
+
+This is the synopsis of my study that is at most 10 sentences.
+
+### Loading and Processing the Raw Data
+
+I obtained the data for this analysis from the [Reproducible Research course website](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2) course website. The database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage. The database included data from 1950 to 2011.
+
+```{r download data}
+file_url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+download.file(file_url, "my_data.bz2", method = "curl")
+```
+
+### Reading in the data
+
+I read in the data directly using the read.csv function as this is able to read directly from the compressed bz2 file. 902297 observations of 37 variables are read into the my_data variable.
+
+```{r read in data, cache = TRUE}
+my_data <- read.csv("my_data.bz2", stringsAsFactors = TRUE)
+```
+
+After reading in the data I check the first 6 rows and review the structure of the data using str and head functions.
+
+```{r check data}
+head(my_data)
+str(my_data)
+```
+
+I can see that some date columns are showing as factor data type, so I will correct these to be dates instead
+
+```{r change date format}
+my_data$BGN_DATE <- strptime(my_data$BGN_DATE, format = "%m/%d/%Y", tz = "UTC")
+my_data$END_DATE <- strptime(my_data$END_DATE, format = "%m/%d/%Y", tz = "UTC")
+
+```
+
+I noticed that some of the values in the EVTYPE column are showing up with incorrect values - for example instead of the event type e.g. THUNDERSTORM, it is showing "Summary June 6" 
+
+```{r find distinct EVTYPE}
+my_data[my_data$EVTYPE == "Summary June 6",]
+```
+
+I will select data from 2006 - 2011 as this data appears to be well formatted and there is no particular need to have data from prior to 2006
+
+```{r select data from 2006 - 2011}
+my_data_2006 <- my_data[my_data$BGN_DATE>"2006/01/01",]
+```
+
+If I run the unique command on the EVTYPE column, I get 54 unique event types instead of 48 event types which are showing in the [data pdf file](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf) in section 2.1.1
+
+The following commands will merge some of the columns so that we have all the event types formatted in the same way and rename the landslide column to debris flow as this has been renamed in the same pdf as mentioned above.
+
+```{r merge values - unfactorize and re-factorize}
+
+my_data_2006$EVTYPE <- as.character(my_data_2006$EVTYPE)
+
+my_data_2006$EVTYPE[grepl("HEAVY SURF/HIGH SURF",my_data_2006$EVTYPE)] <- "HIGH SURF"
+my_data_2006$EVTYPE[grepl("MARINE TSTM WIND",my_data_2006$EVTYPE)] <- "MARINE THUNDERSTORM WIND"
+my_data_2006$EVTYPE[grepl("TSTM WIND",my_data_2006$EVTYPE)] <- "THUNDERSTORM WIND"
+my_data_2006$EVTYPE[grepl("STORM SURGE",my_data_2006$EVTYPE)] <- "STORM SURGE/TIDE"
+my_data_2006$EVTYPE[grepl("VOLCANIC ASHFALL",my_data_2006$EVTYPE)] <- "VOLCANIC ASH"
+my_data_2006$EVTYPE[grepl("WINTER WEATHER/MIX",my_data_2006$EVTYPE)] <- "WINTER WEATHER"
+my_data_2006$EVTYPE[grepl("LANDSLIDE",my_data_2006$EVTYPE)] <- "DEBRIS FLOW"
+
+my_data_2006$EVTYPE <- as.factor(my_data_2006$EVTYPE)
+
+```
+
+
+
+## Results
+
+Here I am exploring the data 
+
+```{r }
+total_health_effect_per_type <- my_data_2006 %>%
+  group_by(EVTYPE) %>%
+  summarise(total_fatalities = sum(FATALITIES), total_injuries = sum(INJURIES)) %>%
+  arrange(desc(total_fatalities), desc(total_fatalities))
+
+
+ggplot(total_health_effect_per_type[1:20,], aes(reorder(EVTYPE,-total_fatalities), total_fatalities)) + geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 90))
+
+```
+
+### Across the United States, which types of events are most harmful with respect to population health?
