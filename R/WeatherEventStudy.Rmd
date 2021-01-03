@@ -9,11 +9,15 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 library(dplyr)
 library(ggplot2)
+library(lubridate)
+library(gridExtra)
 ```
 
 ### Synopsis
 
-This is the synopsis of my study that is at most 10 sentences.
+In this study we discover the economic and health impacts disasters have on the US. By exploring the number of injuries and fatalities caused by each disaster type we can find out which had the largest health impact. And by exploring the crop and property damage we can find out which had the largest economic impact. With this data we found that tornados had the highest health impact, and floods, hail and tornados had the highest economic impact on the US. We used data from 2006 - 2011.
+
+## Data Processing
 
 ### Loading and Processing the Raw Data
 
@@ -59,7 +63,19 @@ I will select data from 2006 - 2011 as this data appears to be well formatted an
 my_data_2006 <- my_data[my_data$BGN_DATE>"2006/01/01",]
 ```
 
+Here's a check for NAs in the data:
+
+```{r check NAs}
+summary(is.na(my_data_2006))
+```
+
+We can see that only the columns F, LATITUDE & LATITUDE_E have some NAs and as we're not going to use these columns there is no need to remove or adjust for these observations.
+
 If I run the unique command on the EVTYPE column, I get 54 unique event types instead of 48 event types which are showing in the [data pdf file](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf) in section 2.1.1
+
+```{r check unique EVTPYE}
+unique(my_data_2006$EVTYPE)
+```
 
 The following commands will merge some of the columns so that we have all the event types formatted in the same way and rename the landslide column to debris flow as this has been renamed in the same pdf as mentioned above.
 
@@ -79,22 +95,161 @@ my_data_2006$EVTYPE <- as.factor(my_data_2006$EVTYPE)
 
 ```
 
+Here are the results of a summary of the overall data points which are important.
 
+```{r summary data}
+summary_data <- my_data_2006 %>%
+  select(FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP)
+options(scipen = 999)
+summary(summary_data)
+```
+
+We can see that PROPDMGEXP & CROPDMGEXP have some values for K, M, B for example which means that we need to multiply the respective column e.g. PROPDMG by that amount.
+
+```{r check damage data}
+unique(my_data_2006$PROPDMGEXP)
+unique(my_data_2006$CROPDMGEXP)
+```
+
+```{r fix data}
+
+my_data_2006$PROPDMGEXP <- as.character(my_data_2006$PROPDMGEXP)
+my_data_2006$CROPDMGEXP <- as.character(my_data_2006$CROPDMGEXP)
+
+my_data_2006$PROPDMGEXP[grepl("^$",my_data_2006$PROPDMGEXP)] <- 1
+my_data_2006$PROPDMGEXP[grepl("K",my_data_2006$PROPDMGEXP)] <- 1000
+my_data_2006$PROPDMGEXP[grepl("M",my_data_2006$PROPDMGEXP)] <- 1000000
+my_data_2006$PROPDMGEXP[grepl("B",my_data_2006$PROPDMGEXP)] <- 1000000000
+
+my_data_2006$CROPDMGEXP[grepl("^$",my_data_2006$CROPDMGEXP)] <- 1
+my_data_2006$CROPDMGEXP[grepl("K",my_data_2006$CROPDMGEXP)] <- 1000
+my_data_2006$CROPDMGEXP[grepl("M",my_data_2006$CROPDMGEXP)] <- 1000000
+my_data_2006$CROPDMGEXP[grepl("B",my_data_2006$CROPDMGEXP)] <- 1000000000
+
+my_data_2006$PROPDMGEXP <- as.numeric(my_data_2006$PROPDMGEXP)
+my_data_2006$CROPDMGEXP <- as.numeric(my_data_2006$CROPDMGEXP)
+
+my_data_2006$PROPDMG <- my_data_2006$PROPDMG * my_data_2006$PROPDMGEXP
+my_data_2006$CROPDMG <- my_data_2006$CROPDMG * my_data_2006$CROPDMGEXP
+```
 
 ## Results
 
-Here I am exploring the data 
+### Across the United States, which types of events are most harmful with respect to population health?
 
-```{r }
+Here I will list out the top 10 event types with the most fatalities and most injuries from 2006 - 2011
+
+```{r total fatalities and injuries}
 total_health_effect_per_type <- my_data_2006 %>%
   group_by(EVTYPE) %>%
   summarise(total_fatalities = sum(FATALITIES), total_injuries = sum(INJURIES)) %>%
-  arrange(desc(total_fatalities), desc(total_fatalities))
+  arrange(desc(total_fatalities))
+total_health_effect_per_type[1:10,]
 
+total_health_effect_per_type <- total_health_effect_per_type %>%
+  arrange(desc(total_injuries))
+total_health_effect_per_type[1:10,]
+```
 
-ggplot(total_health_effect_per_type[1:20,], aes(reorder(EVTYPE,-total_fatalities), total_fatalities)) + geom_bar(stat = "identity") +
-  theme(axis.text.x = element_text(angle = 90))
+We can see that tornado appears to have the highest health affect on the population with the most number of injuries and fatalities.
+
+Let's take a look at the top 10 specific events with the most fatalities
+
+```{r top 10 events}
+total_health_effect_per_type <- my_data_2006 %>%
+  group_by(EVTYPE, BGN_DATE) %>%
+  summarise(total_fatalities = sum(FATALITIES), total_injuries = sum(INJURIES)) %>%
+  arrange(desc(total_fatalities))
+total_health_effect_per_type[1:10,]
+```
+
+We can see that in 2011 there were some events with an extremely large number of fatalities and injuries for Tornadoes.
+
+Let's remove 2011 from the data and see if tornado type events still have the largest effect on health.
+
+```{r 2006 - 2010 data}
+my_data_2006_2010 <- my_data_2006[my_data_2006$BGN_DATE<"2010/12/31",]
+
+total_health_effect_per_type_2010 <- my_data_2006_2010 %>%
+  group_by(EVTYPE) %>%
+  summarise(total_fatalities = sum(FATALITIES), total_injuries = sum(INJURIES)) %>%
+  arrange(desc(total_fatalities))
+total_health_effect_per_type_2010[1:10,]
+
+total_health_effect_per_type_2010 <- total_health_effect_per_type_2010 %>%
+  arrange(desc(total_injuries))
+total_health_effect_per_type_2010[1:10,]
 
 ```
 
-### Across the United States, which types of events are most harmful with respect to population health?
+Tornados still appear to have the highest number of injuries and fatalities, even when removing 2011. Let's take a look at a plot of the different event types. 
+
+```{r health plots}
+
+ggplot(my_data_2006, aes(EVTYPE, FATALITIES)) + geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 90, size=5)) +
+  labs(x = "EVENT TYPE")
+
+ggplot(my_data_2006, aes(EVTYPE, INJURIES)) + geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 90, size=5)) +
+  labs(x = "EVENT TYPE")
+
+```
+
+These plots also show that Tornados have a higher number of injuries and fatalities. Heat type events such as excessive heat appear to have a high number of fatalities and injuries on average while water based events such as floods and rip current have a high number of fatalities and with a relatively lower number of injuries.
+
+### Across the United States, which types of events have the greatest economic consequences?
+
+First let's see the total economic effect on all sources together, so I have merged the property and crop damaage data with the following code
+
+```{r economic data}
+total_economic_effect_per_type <- my_data_2006 %>%
+  group_by(EVTYPE) %>%
+  summarise(Total_Damage = sum(PROPDMG, CROPDMG)) %>%
+  arrange(desc(Total_Damage))
+
+total_economic_effect_per_type[1:10,]
+```
+
+We can see that flood damage has an extremely high value, let's look again for any other outlying data. The next code will show us the events which caused the most damage to crop and property damage.
+
+```{r top 10 economic events}
+total_economic_effect_per_type_event <- my_data_2006 %>%
+  group_by(EVTYPE, BGN_DATE) %>%
+  summarise(total_propdmg = sum(PROPDMG), total_cropdmg = sum(CROPDMG)) %>%
+  arrange(desc(total_propdmg))
+total_economic_effect_per_type_event[1:10,]
+
+total_economic_effect_per_type_event <- total_economic_effect_per_type_event %>%
+    arrange(desc(total_cropdmg))
+total_economic_effect_per_type_event[1:10,]
+```
+
+Let's re-run the total damage again, removing the 1st & 2nd of January 2006 as this has extreme data.
+
+```{r economic data without 2006-1-1}
+my_data_2006_2_1_2006 <- my_data_2006[my_data_2006$BGN_DATE>"2006/01/02",]
+
+total_economic_effect_per_type <- my_data_2006_2_1_2006 %>%
+  group_by(EVTYPE) %>%
+  summarise(Total_Damage = sum(PROPDMG, CROPDMG)) %>%
+  arrange(desc(Total_Damage))
+
+total_economic_effect_per_type[1:10,]
+```
+
+
+```{r economic plots}
+
+ggplot(total_economic_effect_per_type, aes(EVTYPE, Total_Damage/1000000000)) + geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 90, size=7)) +
+  labs(x = "Event Type", y = "Total Damage (Billions)")
+
+```
+
+We can see that floods, tornados and hail have caused the most amount of economic damage.
+
+## Conclusion
+
+Floods, tornados and hail have the highest economic impact between 2006 and 2011.
+Tornados have the highest health impact between 2006 and 2011
