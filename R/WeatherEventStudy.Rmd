@@ -190,11 +190,11 @@ Tornados still appear to have the highest number of injuries and fatalities, eve
 
 ggplot(my_data_2006, aes(EVTYPE, FATALITIES)) + geom_bar(stat = "identity") +
   theme(axis.text.x = element_text(angle = 90, size=5)) +
-  labs(x = "EVENT TYPE")
+  labs(x = "EVENT TYPE", caption = "This plot shows the total fatalities per disaster type between 1 January 2006 - 31 December 2011")
 
 ggplot(my_data_2006, aes(EVTYPE, INJURIES)) + geom_bar(stat = "identity") +
   theme(axis.text.x = element_text(angle = 90, size=5)) +
-  labs(x = "EVENT TYPE")
+  labs(x = "EVENT TYPE", caption = "This plot shows the total injuries per disaster type between 1 January 2006 - 31 December 2011")
 
 ```
 
@@ -245,7 +245,7 @@ total_economic_effect_per_type[1:10,]
 
 ggplot(total_economic_effect_per_type, aes(EVTYPE, Total_Damage/1000000000)) + geom_bar(stat = "identity") +
   theme(axis.text.x = element_text(angle = 90, size=7)) +
-  labs(x = "Event Type", y = "Total Damage (Billions)")
+  labs(x = "Event Type", y = "Total Damage (Billions)", caption = "This plot shows the total economic damage in billions of dollars per disaster type between 3 January 2006 - 31 December 2011")
 
 ```
 
