@@ -1,2 +1,2 @@
 # WeatherEventStudy
-Open WeatherEventStudy.html to review the study
+Open WeatherEventStudy.md to review the study
